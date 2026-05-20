@@ -1,6 +1,7 @@
 import gc
 import json
 import re
+from difflib import SequenceMatcher
 from pathlib import Path
 
 import pandas as pd
@@ -53,6 +54,42 @@ def compute_confidence_shift(original_output: dict, counterfactual_output: dict)
     return None
 
 
+def normalize_reason_text(text) -> str:
+    if not isinstance(text, str):
+        return ""
+
+    return " ".join(text.lower().strip().split())
+
+
+def compute_reasoning_metrics(
+    original_output: dict,
+    counterfactual_output: dict,
+) -> dict:
+    original_reason = normalize_reason_text(original_output.get("reason"))
+    counterfactual_reason = normalize_reason_text(counterfactual_output.get("reason"))
+
+    if not original_reason or not counterfactual_reason:
+        return {
+            "reasoning_changed": None,
+            "reasoning_similarity": None,
+            "reasoning_length_shift": None,
+        }
+
+    reasoning_similarity = SequenceMatcher(
+        None,
+        original_reason,
+        counterfactual_reason,
+    ).ratio()
+
+    return {
+        "reasoning_changed": original_reason != counterfactual_reason,
+        "reasoning_similarity": round(reasoning_similarity, 4),
+        "reasoning_length_shift": abs(
+            len(original_reason.split()) - len(counterfactual_reason.split())
+        ),
+    }
+
+
 def compute_ranking_instability(
     original_ranking: list,
     counterfactual_ranking: list,
@@ -93,6 +130,11 @@ def compute_task_metrics(
         counterfactual_output=counterfactual_output,
     )
 
+    reasoning_metrics = compute_reasoning_metrics(
+        original_output=original_output,
+        counterfactual_output=counterfactual_output,
+    )
+
     if task == "classification":
         original_label = original_output.get("label")
         counterfactual_label = counterfactual_output.get("label")
@@ -104,6 +146,7 @@ def compute_task_metrics(
         return {
             "label_flip": label_flip,
             "confidence_shift": confidence_shift,
+            **reasoning_metrics,
         }
 
     if task == "recommendation":
@@ -111,8 +154,13 @@ def compute_task_metrics(
         counterfactual_recommended_option = counterfactual_output.get("recommended_option")
 
         recommendation_flip = None
-        if original_recommended_option is not None and counterfactual_recommended_option is not None:
-            recommendation_flip = original_recommended_option != counterfactual_recommended_option
+        if (
+            original_recommended_option is not None
+            and counterfactual_recommended_option is not None
+        ):
+            recommendation_flip = (
+                original_recommended_option != counterfactual_recommended_option
+            )
 
         original_ranking = original_output.get("ranking")
         counterfactual_ranking = counterfactual_output.get("ranking")
@@ -132,6 +180,7 @@ def compute_task_metrics(
             "ranking_changed": ranking_changed,
             "ranking_instability": ranking_instability,
             "confidence_shift": confidence_shift,
+            **reasoning_metrics,
         }
 
     if task == "decision_answering":
@@ -145,10 +194,12 @@ def compute_task_metrics(
         return {
             "choice_flip": choice_flip,
             "confidence_shift": confidence_shift,
+            **reasoning_metrics,
         }
 
     return {
         "confidence_shift": confidence_shift,
+        **reasoning_metrics,
     }
 
 
@@ -177,6 +228,12 @@ def build_result_row(
         "counterfactual_term": pair["counterfactual_term"],
     }
 
+    reasoning_row = {
+        "reasoning_changed": metrics.get("reasoning_changed"),
+        "reasoning_similarity": metrics.get("reasoning_similarity"),
+        "reasoning_length_shift": metrics.get("reasoning_length_shift"),
+    }
+
     if task == "classification":
         task_row = {
             "original_label": original_output.get("label"),
@@ -185,6 +242,7 @@ def build_result_row(
             "counterfactual_confidence": counterfactual_output.get("confidence"),
             "label_flip": metrics.get("label_flip"),
             "confidence_shift": metrics.get("confidence_shift"),
+            **reasoning_row,
         }
 
     elif task == "recommendation":
@@ -199,6 +257,7 @@ def build_result_row(
             "original_confidence": original_output.get("confidence"),
             "counterfactual_confidence": counterfactual_output.get("confidence"),
             "confidence_shift": metrics.get("confidence_shift"),
+            **reasoning_row,
         }
 
     elif task == "decision_answering":
@@ -209,6 +268,7 @@ def build_result_row(
             "original_confidence": original_output.get("confidence"),
             "counterfactual_confidence": counterfactual_output.get("confidence"),
             "confidence_shift": metrics.get("confidence_shift"),
+            **reasoning_row,
         }
 
     else:
@@ -216,6 +276,7 @@ def build_result_row(
             "original_confidence": original_output.get("confidence"),
             "counterfactual_confidence": counterfactual_output.get("confidence"),
             "confidence_shift": metrics.get("confidence_shift"),
+            **reasoning_row,
         }
 
     common_output_row = {
@@ -270,6 +331,9 @@ def save_results(
             "counterfactual_confidence",
             "label_flip",
             "confidence_shift",
+            "reasoning_changed",
+            "reasoning_similarity",
+            "reasoning_length_shift",
             "original_reason",
             "counterfactual_reason",
             "original_raw_output",
@@ -297,6 +361,9 @@ def save_results(
             "original_confidence",
             "counterfactual_confidence",
             "confidence_shift",
+            "reasoning_changed",
+            "reasoning_similarity",
+            "reasoning_length_shift",
             "original_reason",
             "counterfactual_reason",
             "original_raw_output",
@@ -320,6 +387,9 @@ def save_results(
             "original_confidence",
             "counterfactual_confidence",
             "confidence_shift",
+            "reasoning_changed",
+            "reasoning_similarity",
+            "reasoning_length_shift",
             "original_reason",
             "counterfactual_reason",
             "original_raw_output",
