@@ -20,12 +20,12 @@ The goal is to provide a repeatable process for detecting and analyzing fairness
 
 The project aims to:
 
-- identify relevant sensitive attributes from existing fairness datasets and benchmarks;
-- organize tasks, subtasks, bias axes, and replacement values into a structured taxonomy;
-- generate neutral scenarios and controlled counterfactual prompt pairs;
-- evaluate multiple generative language models on the same prompt pairs;
-- compare outputs using decision-level, ranking-level, confidence-level, and reasoning-level metrics;
-- support quantitative analysis through CSV outputs and plots, as well as manual audit of relevant cases.
+- Identify relevant sensitive attributes from existing fairness datasets and benchmarks;
+- Organize tasks, subtasks, bias axes, and replacement values into a structured taxonomy;
+- Generate neutral scenarios and controlled counterfactual prompt pairs;
+- Evaluate multiple generative language models on the same prompt pairs;
+- Compare outputs using decision-level, ranking-level, confidence-level, and reasoning-level metrics;
+- Support quantitative analysis through CSV outputs and plots, as well as manual audit of relevant cases.
 
 The focus is on **local counterfactual stability**: if two prompts differ only in a sensitive attribute that is irrelevant to the task, the model should ideally produce equivalent task-relevant outputs.
 
@@ -39,12 +39,12 @@ Traditional fairness evaluation often relies on static benchmarks or group-level
 
 The project is inspired by research on:
 
-- counterfactual fairness;
-- bias detection in language models;
-- behavioral testing of NLP systems;
-- prompt-based fairness evaluation;
-- invariance testing;
-- explanation-level sensitivity in LLM outputs.
+- Counterfactual fairness
+- Bias detection in language models
+- Behavioral testing of NLP systems
+- Prompt-based fairness evaluation
+- Invariance testing
+- Explanation-level sensitivity in LLM outputs
 
 ---
 
@@ -119,8 +119,8 @@ Prompt pairs are generated from the neutral scenarios, the taxonomy, and task-sp
 
 Each pair contains:
 
-- `original_prompt`
-- `counterfactual_prompt`
+- **Original prompt**
+- **Counterfactual prompt**
 
 The two prompts differ only in the inserted sensitive attribute value.
 
