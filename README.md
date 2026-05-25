@@ -2,13 +2,17 @@
 
 ## 📌 Overview
 
-This repository contains an early-stage project developed as part of the **SE4AI course**.
+This repository contains a framework for **counterfactual fairness testing of generative language models**, developed as part of a **SE4AI course**.
 
-The project focuses on the analysis of **bias in generative language models**, with particular attention to how sensitive features in the input may influence model outputs.
+The project evaluates whether Large Language Models change their behavior when a prompt is modified only with respect to a sensitive attribute. Starting from neutral task scenarios, the framework generates controlled original/counterfactual prompt pairs, runs multiple LLMs on the same inputs, and compares their outputs through task-specific stability metrics.
 
-The main goal is to build a pipeline for **counterfactual fairness testing**: starting from neutral prompts, the system generates controlled variants by modifying only sensitive attributes such as gender, ethnicity, religion, or other relevant features. The model outputs are then compared to evaluate whether these changes affect the model behavior.
+The framework currently supports three task families:
 
-The project is currently in a preliminary phase and will evolve as the methodology, implementation, and experiments become more mature.
+- **Classification**
+- **Recommendation**
+- **Decision answering**
+
+The goal is to provide a repeatable process for detecting and analyzing fairness-related instabilities in generative AI systems.
 
 ---
 
@@ -16,91 +20,365 @@ The project is currently in a preliminary phase and will evolve as the methodolo
 
 The project aims to:
 
-* Identify relevant sensitive features from existing literature, datasets, and benchmarks
-* Organize these features into a structured taxonomy
-* Generate counterfactual prompts by modifying sensitive attributes in a controlled way
-* Evaluate how these variations influence generative model outputs
-* Study mitigation strategies to reduce observed bias
+- identify relevant sensitive attributes from existing fairness datasets and benchmarks;
+- organize tasks, subtasks, bias axes, and replacement values into a structured taxonomy;
+- generate neutral scenarios and controlled counterfactual prompt pairs;
+- evaluate multiple generative language models on the same prompt pairs;
+- compare outputs using decision-level, ranking-level, confidence-level, and reasoning-level metrics;
+- support quantitative analysis through CSV outputs and plots, as well as manual audit of relevant cases.
 
-The focus is on building a repeatable process to detect and analyze biased behavior in generative AI systems.
+The focus is on **local counterfactual stability**: if two prompts differ only in a sensitive attribute that is irrelevant to the task, the model should ideally produce equivalent task-relevant outputs.
 
 ---
 
 ## 🧠 Research Context
 
-Large Language Models are widely used in many application domains, but their outputs may be affected by sensitive attributes present in the input.
+Large Language Models are increasingly used in classification, recommendation, and decision-support contexts. In these settings, sensitive attributes such as gender, race, ethnicity, nationality, religion, disability, age, socioeconomic status, sexual orientation, physical appearance, or language background may affect model outputs in undesirable ways.
 
-Traditional fairness evaluation often relies on static benchmarks, which may be limited in coverage and generalizability. This project adopts a **counterfactual testing** perspective: a model should ideally behave consistently when sensitive attributes that are irrelevant to the task are changed.
+Traditional fairness evaluation often relies on static benchmarks or group-level metrics. This project adopts a **counterfactual testing** perspective: a model is evaluated on pairs of prompts that are semantically equivalent except for one controlled sensitive attribute change.
 
 The project is inspired by research on:
 
-* Counterfactual fairness
-* Bias detection in language models
-* Benchmark-based fairness evaluation
-* Automatic prompt-based test generation
-* Bias mitigation through prompt and input reformulation
+- counterfactual fairness;
+- bias detection in language models;
+- behavioral testing of NLP systems;
+- prompt-based fairness evaluation;
+- invariance testing;
+- explanation-level sensitivity in LLM outputs.
 
 ---
 
 ## 🧪 Methodology
 
-The proposed approach follows a pipeline based on controlled prompt generation and output comparison.
+The framework follows a pipeline based on controlled prompt generation and output comparison.
 
-### 1️⃣ Sensitive Feature Analysis
+```text
+Taxonomy construction
+        ↓
+Neutral scenario generation
+        ↓
+Counterfactual prompt-pair generation
+        ↓
+LLM evaluation
+        ↓
+Metrics, plots, summaries, and audit cases
+```
 
-Existing datasets and benchmarks, such as **CrowS-Pairs** and **StereoSet**, are analyzed to identify sensitive features commonly associated with biased model behavior.
+### 1️⃣ Taxonomy Construction
 
-These features are organized into categories such as:
+The taxonomy defines task types, subtasks, sensitive bias axes, replacement groups, and original/counterfactual terms.
 
-* Gender
-* Ethnicity
-* Religion
-* Nationality
-* Age
-* Other context-dependent sensitive attributes
+It was built by analyzing and consolidating bias-related resources and datasets, including **CrowS-Pairs**, **BBQ**, and **HolisticBias**.
 
----
+The final taxonomy files are stored in:
 
-### 2️⃣ Counterfactual Prompt Generation
+```text
+outputs/taxonomy/
+```
 
-Starting from neutral base prompts, the system generates counterfactual variants by modifying only the selected sensitive feature.
+The main files are:
 
-The generation process may use:
-
-* Rule-based transformations
-* Direct attribute replacement
-* Controlled support from language models
-
-The objective is to obtain prompt variants that are semantically equivalent and differ only in the sensitive attribute under analysis.
-
----
-
-### 3️⃣ Model Execution and Output Comparison
-
-The selected generative model is executed on both the original prompts and their counterfactual variants.
-
-The outputs are compared to evaluate whether the model remains stable or changes its behavior in ways that may suggest bias.
-
-The project plans to define an operational measure of **fairness compliance**, inspired by the idea of compliance in prompt-based test generation. This measure is intended to quantify how consistently the model behaves when irrelevant sensitive attributes are changed.
+```text
+final_task_taxonomy.json
+final_replacement_taxonomy.json
+final_taxonomy_light.json
+final_taxonomy_extended.json
+```
 
 ---
 
-### 4️⃣ Bias Mitigation
+### 2️⃣ Scenario Generation
 
-When potentially biased behavior is detected, mitigation strategies are applied and evaluated.
+Neutral base scenarios are generated for each supported subtask. These scenarios describe the task context without directly inserting sensitive attributes.
 
-Possible strategies include:
+Scenario generation templates are stored in:
 
-* Prompt rewriting
-* Input reformulation
-* More explicit neutralization of task instructions
-* Re-execution of the evaluation pipeline after mitigation
+```text
+data/prompts/scenario_generation/
+```
+
+Generated scenarios are saved in:
+
+```text
+data/generated/base_scenarios.jsonl
+```
+
+Example command:
+
+```bash
+python scripts/generate_base_scenarios.py \
+  --scenarios-per-subtask 3 \
+  --output data/generated/base_scenarios.jsonl
+```
+
+---
+
+### 3️⃣ Counterfactual Prompt-Pair Generation
+
+Prompt pairs are generated from the neutral scenarios, the taxonomy, and task-specific prompt templates.
+
+Each pair contains:
+
+- `original_prompt`
+- `counterfactual_prompt`
+
+The two prompts differ only in the inserted sensitive attribute value.
+
+Prompt templates are organized by task in:
+
+```text
+data/prompts/classification/
+data/prompts/recommendation/
+data/prompts/decision_answering/
+```
+
+Generated prompt pairs are saved in:
+
+```text
+data/generated/prompt_pairs.jsonl
+```
+
+Example command:
+
+```bash
+python scripts/generate_prompt_pairs.py \
+  --scenarios data/generated/base_scenarios.jsonl \
+  --output data/generated/prompt_pairs.jsonl \
+  --max-pairs-per-group 1
+```
+
+The prompt templates use neutral contextual labels such as:
+
+```text
+Additional candidate information:
+Additional learner information:
+Additional information about Candidate A:
+```
+
+instead of explicitly marking the inserted information as a `Sensitive attribute`. This preserves the counterfactual structure while making the prompt less explicitly fairness-aware.
+
+---
+
+### 4️⃣ Model Evaluation
+
+The framework evaluates multiple LLMs on the same prompt pairs.
+
+Current target models are:
+
+```python
+MODEL_REGISTRY = {
+    "qwen": "Qwen/Qwen3-8B",
+    "mistral": "mistralai/Ministral-8B-Instruct-2410",
+    "llama": "NousResearch/Meta-Llama-3.1-8B-Instruct",
+}
+```
+
+Evaluation is performed with:
+
+```text
+scripts/run_llm_eval.py
+```
+
+Example command:
+
+```bash
+python scripts/run_llm_eval.py \
+  --model qwen \
+  --input data/generated/prompt_pairs.jsonl \
+  --max-new-tokens 120 \
+  --output-dir outputs/llm_runs \
+  --quantization 8bit
+```
+
+The full pipeline can also be executed with:
+
+```text
+scripts/run_pipeline.py
+```
+
+Example command:
+
+```bash
+python scripts/run_pipeline.py \
+  --models qwen mistral llama \
+  --scenarios-per-subtask 3 \
+  --max-pairs-per-group 1 \
+  --max-new-tokens 120 \
+  --quantization 8bit
+```
+
+To reuse existing scenarios and prompt pairs:
+
+```bash
+python scripts/run_pipeline.py \
+  --models qwen mistral llama \
+  --skip-scenario-generation \
+  --skip-prompt-generation \
+  --max-new-tokens 120 \
+  --quantization 8bit
+```
+
+---
+
+## 📊 Metrics
+
+The framework computes task-specific metrics and shared stability metrics.
+
+For **classification** tasks:
+
+```text
+label_flip
+confidence_shift
+reasoning_changed
+reasoning_similarity
+reasoning_length_shift
+```
+
+For **recommendation** tasks:
+
+```text
+recommendation_flip
+ranking_changed
+ranking_instability
+confidence_shift
+reasoning_changed
+reasoning_similarity
+reasoning_length_shift
+```
+
+For **decision answering** tasks:
+
+```text
+choice_flip
+confidence_shift
+reasoning_changed
+reasoning_similarity
+reasoning_length_shift
+```
+
+Decision-level metrics measure whether the final task output changes between the original and counterfactual prompt.
+
+Ranking-level metrics evaluate whether the order of recommended options changes.
+
+Confidence-level metrics measure changes in the model's self-reported confidence.
+
+Reasoning-level metrics compare the generated explanations and are used as auxiliary audit signals. They help identify cases where the final decision remains stable but the explanation changes substantially.
+
+---
+
+## 📁 Outputs
+
+Generated scenarios and prompt pairs are stored in:
+
+```text
+data/generated/
+```
+
+Evaluation results are stored in:
+
+```text
+outputs/llm_runs/
+```
+
+Each model produces:
+
+```text
+results_<model>_<model_id>_all.csv
+results_<model>_<model_id>_classification.csv
+results_<model>_<model_id>_recommendation.csv
+results_<model>_<model_id>_decision_answering.csv
+```
+
+Summary tables, plots, and audit files are generated with:
+
+```text
+scripts/summary_plots.py
+```
+
+Example command:
+
+```bash
+python scripts/summary_plots.py
+```
+
+Generated analysis outputs are stored in:
+
+```text
+outputs/plots/
+```
+
+This includes summary CSV files, plots, heatmaps, and audit files for decision flips and low reasoning similarity cases.
+
+---
+
+## 🚀 Quick Start
+
+Create and activate a virtual environment:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Generate neutral scenarios:
+
+```bash
+python scripts/generate_base_scenarios.py \
+  --scenarios-per-subtask 3 \
+  --output data/generated/base_scenarios.jsonl
+```
+
+Generate counterfactual prompt pairs:
+
+```bash
+python scripts/generate_prompt_pairs.py \
+  --scenarios data/generated/base_scenarios.jsonl \
+  --output data/generated/prompt_pairs.jsonl \
+  --max-pairs-per-group 1
+```
+
+Run model evaluation:
+
+```bash
+python scripts/run_llm_eval.py \
+  --model qwen \
+  --input data/generated/prompt_pairs.jsonl \
+  --max-new-tokens 120 \
+  --output-dir outputs/llm_runs \
+  --quantization 8bit
+```
+
+Generate summaries and plots:
+
+```bash
+python scripts/summary_plots.py
+```
+
+---
+
+## ⚠️ Notes and Limitations
+
+This framework evaluates **counterfactual stability**, not classical group fairness.
+
+It does not estimate group-level metrics such as demographic parity, equalized odds, or equal opportunity, because the generated benchmark does not contain population-level ground-truth distributions.
+
+A decision flip indicates a candidate counterfactual instability and should be manually inspected. Reasoning metrics are also auxiliary: a low reasoning similarity may indicate explanation-level sensitivity, but it can also result from harmless paraphrasing.
+
+Quantized inference may slightly affect generated outputs. For comparability, the same quantization setup should be used across evaluated models whenever possible.
 
 ---
 
 ## 🛠️ Repository Status
 
-This repository is currently under active development.
+The framework is functional and supports scenario generation, prompt-pair generation, multi-model evaluation, metric computation, and result visualization.
+
+Further work may include expanding the taxonomy, increasing scenario diversity, improving semantic reasoning comparison, and testing mitigation strategies.
 
 ---
 
@@ -108,4 +386,4 @@ This repository is currently under active development.
 
 This project is developed as part of a SE4AI course.
 
-The repository represents an ongoing effort to apply software engineering principles to the evaluation and improvement of fairness in generative AI systems.
+The repository represents an effort to apply software engineering principles to the evaluation and analysis of fairness-related behavior in generative AI systems.
