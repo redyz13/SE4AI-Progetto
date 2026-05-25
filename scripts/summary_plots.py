@@ -5,10 +5,10 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-DEFAULT_INPUT_DIR = Path("outputs/llm_runs")
-DEFAULT_OUTPUT_DIR = Path("outputs/plots")
-
+DEFAULT_INPUT_DIR = PROJECT_ROOT / "outputs" / "llm_runs"
+DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "outputs" / "plots"
 
 def infer_model_name(path: Path) -> str:
     name = path.stem
