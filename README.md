@@ -8,9 +8,9 @@ The project evaluates whether Large Language Models change their behavior when a
 
 The framework currently supports three task families:
 
-- **Classification**
-- **Recommendation**
-- **Decision answering**
+- Classification
+- Recommendation
+- Decision answering
 
 The goal is to provide a repeatable process for detecting and analyzing fairness-related instabilities in generative AI systems.
 
@@ -25,6 +25,7 @@ The project aims to:
 - Generate neutral scenarios and controlled counterfactual prompt pairs;
 - Evaluate multiple generative language models on the same prompt pairs;
 - Compare outputs using decision-level, ranking-level, confidence-level, and reasoning-level metrics;
+- Analyze the reproducibility of results across independent evaluation runs;
 - Support quantitative analysis through CSV outputs and plots, as well as manual audit of relevant cases.
 
 The focus is on **local counterfactual stability**: if two prompts differ only in a sensitive attribute that is irrelevant to the task, the model should ideally produce equivalent task-relevant outputs.
@@ -61,7 +62,7 @@ Counterfactual prompt-pair generation
         ↓
 LLM evaluation
         ↓
-Metrics, plots, summaries, and audit cases
+Metrics, plots, summaries, audit cases, and run comparison
 ```
 
 ### 1️⃣ Taxonomy Construction
@@ -97,10 +98,18 @@ Scenario generation templates are stored in:
 data/prompts/scenario_generation/
 ```
 
-Generated scenarios are saved in:
+Generated scenarios are saved in dedicated folders:
 
 ```text
-data/generated/base_scenarios.jsonl
+data/generated/
+data/generated2/
+```
+
+Each folder contains:
+
+```text
+base_scenarios.jsonl
+prompt_pairs.jsonl
 ```
 
 Example command:
@@ -119,8 +128,8 @@ Prompt pairs are generated from the neutral scenarios, the taxonomy, and task-sp
 
 Each pair contains:
 
-- **Original prompt**
-- **Counterfactual prompt**
+- Original prompt
+- Counterfactual prompt
 
 The two prompts differ only in the inserted sensitive attribute value.
 
@@ -130,12 +139,6 @@ Prompt templates are organized by task in:
 data/prompts/classification/
 data/prompts/recommendation/
 data/prompts/decision_answering/
-```
-
-Generated prompt pairs are saved in:
-
-```text
-data/generated/prompt_pairs.jsonl
 ```
 
 Example command:
@@ -189,6 +192,8 @@ python scripts/run_llm_eval.py \
   --output-dir outputs/llm_runs \
   --quantization 8bit
 ```
+
+Repeat the evaluation command with `--model mistral` and `--model llama` to evaluate all target models.
 
 The full pipeline can also be executed with:
 
@@ -268,16 +273,30 @@ Reasoning-level metrics compare the generated explanations and are used as auxil
 
 ## 📁 Outputs
 
-Generated scenarios and prompt pairs are stored in:
+Evaluation results are stored in dedicated run folders.
 
-```text
-data/generated/
-```
-
-Evaluation results are stored in:
+First evaluation run:
 
 ```text
 outputs/llm_runs/
+```
+
+Second evaluation run:
+
+```text
+outputs/llm_run2/
+```
+
+Both folders follow the same structure, with one subfolder per model:
+
+```text
+outputs/llm_runs/Qwen/
+outputs/llm_runs/Mistral/
+outputs/llm_runs/LLama/
+
+outputs/llm_run2/Qwen/
+outputs/llm_run2/Mistral/
+outputs/llm_run2/LLama/
 ```
 
 Each model produces:
@@ -289,25 +308,69 @@ results_<model>_<model_id>_recommendation.csv
 results_<model>_<model_id>_decision_answering.csv
 ```
 
-Summary tables, plots, and audit files are generated with:
+---
+
+## 📈 Plotting and Analysis
+
+Summary tables, plots, heatmaps, and audit files are generated with:
 
 ```text
 scripts/summary_plots.py
 ```
 
+For the first run:
+
+```bash
+python scripts/summary_plots.py \
+  --input-dir outputs/llm_runs \
+  --output-dir outputs/plots
+```
+
+For the second run:
+
+```bash
+python scripts/summary_plots.py \
+  --input-dir outputs/llm_run2 \
+  --output-dir outputs/plots2
+```
+
+The generated artifacts include aggregate summaries, stability plots, reasoning-similarity plots, confidence-shift plots, heatmaps, and audit CSV files for decision flips and low-reasoning-similarity cases.
+
+```text
+outputs/plots/  -> Analysis artifacts for run 1
+outputs/plots2/ -> Analysis artifacts for run 2
+```
+
+---
+
+## 🔁 Run Comparison
+
+Two independent evaluation runs can be compared with:
+
+```text
+scripts/compare_runs.py
+```
+
 Example command:
 
 ```bash
-python scripts/summary_plots.py
+python scripts/compare_runs.py \
+  --run-a-dir outputs/llm_runs \
+  --run-b-dir outputs/llm_run2 \
+  --run-a-name run1 \
+  --run-b-name run2 \
+  --output-dir outputs/run_comparison
 ```
 
-Generated analysis outputs are stored in:
+The comparison outputs are stored in:
 
 ```text
-outputs/plots/
+outputs/run_comparison/
 ```
 
-This includes summary CSV files, plots, heatmaps, and audit files for decision flips and low reasoning similarity cases.
+They include aggregate deltas, pair-level comparisons, plots, and audit CSV files useful for checking run-to-run reproducibility.
+
+Decision-level deltas are the primary signal for run-to-run stability. Reasoning-similarity deltas are auxiliary and mainly support manual audit of cases where explanations become more or less stable across runs.
 
 ---
 
@@ -354,10 +417,25 @@ python scripts/run_llm_eval.py \
   --quantization 8bit
 ```
 
+Repeat the evaluation command with `--model mistral` and `--model llama` to evaluate all target models.
+
 Generate summaries and plots:
 
 ```bash
-python scripts/summary_plots.py
+python scripts/summary_plots.py \
+  --input-dir outputs/llm_runs \
+  --output-dir outputs/plots
+```
+
+Compare two runs:
+
+```bash
+python scripts/compare_runs.py \
+  --run-a-dir outputs/llm_runs \
+  --run-b-dir outputs/llm_run2 \
+  --run-a-name run1 \
+  --run-b-name run2 \
+  --output-dir outputs/run_comparison
 ```
 
 ---
@@ -370,13 +448,15 @@ It does not estimate group-level metrics such as demographic parity, equalized o
 
 A decision flip indicates a candidate counterfactual instability and should be manually inspected. Reasoning metrics are also auxiliary: a low reasoning similarity may indicate explanation-level sensitivity, but it can also result from harmless paraphrasing.
 
+Run comparison helps evaluate reproducibility across independent executions, but differences between runs may still be affected by generation variability, decoding behavior, quantization, and model-level nondeterminism.
+
 Quantized inference may slightly affect generated outputs. For comparability, the same quantization setup should be used across evaluated models whenever possible.
 
 ---
 
 ## 🛠️ Repository Status
 
-The framework is functional and supports scenario generation, prompt-pair generation, multi-model evaluation, metric computation, and result visualization.
+The framework is functional and supports scenario generation, prompt-pair generation, multi-model evaluation, metric computation, result visualization, and comparison between independent runs.
 
 Further work may include expanding the taxonomy, increasing scenario diversity, improving semantic reasoning comparison, and testing mitigation strategies.
 
