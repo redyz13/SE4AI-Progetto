@@ -10,6 +10,15 @@ DEFAULT_RUN_A_DIR = Path("outputs/llm_runs")
 DEFAULT_RUN_B_DIR = Path("outputs/llm_run2")
 DEFAULT_OUTPUT_DIR = Path("outputs/run_comparison")
 
+PLOT_FORMAT = "pdf"
+
+plt.rcParams["pdf.fonttype"] = 42
+plt.rcParams["ps.fonttype"] = 42
+
+
+def plot_path(output_dir: Path, name: str) -> Path:
+    return output_dir / f"{name}.{PLOT_FORMAT}"
+
 
 def infer_model_name(path: Path) -> str:
     name = path.stem
@@ -98,27 +107,29 @@ def compute_summary_by_model(df: pd.DataFrame) -> pd.DataFrame:
                 "recommendation_pairs": int(recommendation.sum()),
                 "decision_answering_pairs": int(decision_answering.sum()),
                 "label_flips": int(group["label_flip_bool"].sum()),
-                "label_flip_rate": group.loc[classification, "label_flip_bool"].mean()
-                if classification.sum()
-                else 0,
+                "label_flip_rate": (
+                    group.loc[classification, "label_flip_bool"].mean()
+                    if classification.sum()
+                    else 0
+                ),
                 "recommendation_flips": int(group["recommendation_flip_bool"].sum()),
-                "recommendation_flip_rate": group.loc[
-                    recommendation, "recommendation_flip_bool"
-                ].mean()
-                if recommendation.sum()
-                else 0,
+                "recommendation_flip_rate": (
+                    group.loc[recommendation, "recommendation_flip_bool"].mean()
+                    if recommendation.sum()
+                    else 0
+                ),
                 "choice_flips": int(group["choice_flip_bool"].sum()),
-                "choice_flip_rate": group.loc[
-                    decision_answering, "choice_flip_bool"
-                ].mean()
-                if decision_answering.sum()
-                else 0,
+                "choice_flip_rate": (
+                    group.loc[decision_answering, "choice_flip_bool"].mean()
+                    if decision_answering.sum()
+                    else 0
+                ),
                 "ranking_changed": int(group["ranking_changed_bool"].sum()),
-                "ranking_changed_rate": group.loc[
-                    recommendation, "ranking_changed_bool"
-                ].mean()
-                if recommendation.sum()
-                else 0,
+                "ranking_changed_rate": (
+                    group.loc[recommendation, "ranking_changed_bool"].mean()
+                    if recommendation.sum()
+                    else 0
+                ),
                 "any_decision_flips": int(group["any_decision_flip"].sum()),
                 "any_decision_flip_rate": group["any_decision_flip"].mean(),
                 "confidence_shift_mean": group["confidence_shift_num"].mean(),
@@ -181,7 +192,12 @@ def compute_group_summary(df: pd.DataFrame, group_col: str) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def compute_delta(summary: pd.DataFrame, id_cols: list[str], run_a: str, run_b: str) -> pd.DataFrame:
+def compute_delta(
+    summary: pd.DataFrame,
+    id_cols: list[str],
+    run_a: str,
+    run_b: str,
+) -> pd.DataFrame:
     a = summary[summary["run"] == run_a].copy()
     b = summary[summary["run"] == run_b].copy()
 
@@ -296,17 +312,25 @@ def compute_pair_level_comparison(
     return merged
 
 
-def save_bar_plot(data: pd.DataFrame, x: str, y: str, title: str, ylabel: str, path: Path):
+def save_bar_plot(
+    data: pd.DataFrame,
+    x: str,
+    y: str,
+    title: str,
+    ylabel: str,
+    path: Path,
+):
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    plt.figure(figsize=(10, 6))
-    plt.bar(data[x].astype(str), data[y])
-    plt.title(title)
-    plt.ylabel(ylabel)
-    plt.xticks(rotation=0)
-    plt.tight_layout()
-    plt.savefig(path, dpi=200)
-    plt.close()
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.bar(data[x].astype(str), data[y])
+    ax.set_title(title)
+    ax.set_ylabel(ylabel)
+    ax.tick_params(axis="x", rotation=0)
+
+    fig.tight_layout()
+    fig.savefig(path, bbox_inches="tight")
+    plt.close(fig)
 
 
 def save_grouped_run_plot(
@@ -320,14 +344,16 @@ def save_grouped_run_plot(
 
     pivot = summary.pivot(index="model", columns="run", values=metric).fillna(0)
 
-    plt.figure(figsize=(10, 6))
-    pivot.plot(kind="bar")
-    plt.title(title)
-    plt.ylabel(ylabel)
-    plt.xticks(rotation=0)
-    plt.tight_layout()
-    plt.savefig(path, dpi=200)
-    plt.close()
+    fig, ax = plt.subplots(figsize=(10, 6))
+    pivot.plot(kind="bar", ax=ax)
+    ax.set_title(title)
+    ax.set_ylabel(ylabel)
+    ax.set_xlabel("")
+    ax.tick_params(axis="x", rotation=0)
+
+    fig.tight_layout()
+    fig.savefig(path, bbox_inches="tight")
+    plt.close(fig)
 
 
 def save_delta_plot(
@@ -347,15 +373,20 @@ def save_delta_plot(
     plot_data = delta.copy()
     plot_data[id_col] = plot_data[id_col].astype(str)
 
-    plt.figure(figsize=(10, 6))
-    plt.bar(plot_data[id_col], plot_data[metric_delta])
-    plt.axhline(0, linewidth=1)
-    plt.title(title)
-    plt.ylabel(ylabel)
-    plt.xticks(rotation=rotation, ha="right" if rotation else "center")
-    plt.tight_layout()
-    plt.savefig(path, dpi=200)
-    plt.close()
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.bar(plot_data[id_col], plot_data[metric_delta])
+    ax.axhline(0, linewidth=1)
+    ax.set_title(title)
+    ax.set_ylabel(ylabel)
+    ax.tick_params(axis="x", rotation=rotation)
+
+    if rotation:
+        for label in ax.get_xticklabels():
+            label.set_ha("right")
+
+    fig.tight_layout()
+    fig.savefig(path, bbox_inches="tight")
+    plt.close(fig)
 
 
 def save_model_task_delta_plot(
@@ -369,17 +400,23 @@ def save_model_task_delta_plot(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     plot_data = task_delta.copy()
-    plot_data["model_task"] = plot_data["model"].astype(str) + " / " + plot_data["task"].astype(str)
+    plot_data["model_task"] = (
+        plot_data["model"].astype(str) + " / " + plot_data["task"].astype(str)
+    )
 
-    plt.figure(figsize=(14, 6))
-    plt.bar(plot_data["model_task"], plot_data[metric_delta])
-    plt.axhline(0, linewidth=1)
-    plt.title(f"{metric_delta} by model and task")
-    plt.ylabel(metric_delta)
-    plt.xticks(rotation=45, ha="right")
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=200)
-    plt.close()
+    fig, ax = plt.subplots(figsize=(14, 6))
+    ax.bar(plot_data["model_task"], plot_data[metric_delta])
+    ax.axhline(0, linewidth=1)
+    ax.set_title(f"{metric_delta} by model and task")
+    ax.set_ylabel(metric_delta)
+    ax.tick_params(axis="x", rotation=45)
+
+    for label in ax.get_xticklabels():
+        label.set_ha("right")
+
+    fig.tight_layout()
+    fig.savefig(output_path, bbox_inches="tight")
+    plt.close(fig)
 
 
 def save_pair_case_files(
@@ -396,7 +433,9 @@ def save_pair_case_files(
         "any_decision_flip_changed",
     ]
 
-    existing_change_cols = [col for col in change_cols if col in pair_comparison.columns]
+    existing_change_cols = [
+        col for col in change_cols if col in pair_comparison.columns
+    ]
 
     if existing_change_cols:
         decision_metric_changes = pair_comparison[
@@ -427,7 +466,10 @@ def save_pair_case_files(
 
     if "confidence_shift_delta" in pair_comparison.columns:
         pair_comparison.reindex(
-            pair_comparison["confidence_shift_delta"].abs().sort_values(ascending=False).index
+            pair_comparison["confidence_shift_delta"]
+            .abs()
+            .sort_values(ascending=False)
+            .index
         ).head(100).to_csv(
             output_dir / "cases_largest_confidence_shift_delta.csv",
             index=False,
@@ -488,10 +530,22 @@ def compare_runs(
         run_b=run_b_name,
     )
 
-    summary_by_model.to_csv(output_dir / "comparison_summary_by_model.csv", index=False)
-    summary_by_task.to_csv(output_dir / "comparison_summary_by_task.csv", index=False)
-    summary_by_subtask.to_csv(output_dir / "comparison_summary_by_subtask.csv", index=False)
-    summary_by_bias_axis.to_csv(output_dir / "comparison_summary_by_bias_axis.csv", index=False)
+    summary_by_model.to_csv(
+        output_dir / "comparison_summary_by_model.csv",
+        index=False,
+    )
+    summary_by_task.to_csv(
+        output_dir / "comparison_summary_by_task.csv",
+        index=False,
+    )
+    summary_by_subtask.to_csv(
+        output_dir / "comparison_summary_by_subtask.csv",
+        index=False,
+    )
+    summary_by_bias_axis.to_csv(
+        output_dir / "comparison_summary_by_bias_axis.csv",
+        index=False,
+    )
 
     delta_by_model.to_csv(output_dir / "delta_by_model.csv", index=False)
     delta_by_task.to_csv(output_dir / "delta_by_task.csv", index=False)
@@ -506,7 +560,7 @@ def compare_runs(
         metric="any_decision_flip_rate",
         title="Decision flip rate by model and run",
         ylabel="Decision flip rate",
-        path=output_dir / "decision_flip_rate_by_model_and_run.png",
+        path=plot_path(output_dir, "decision_flip_rate_by_model_and_run"),
     )
 
     save_grouped_run_plot(
@@ -514,7 +568,7 @@ def compare_runs(
         metric="reasoning_similarity_mean",
         title="Mean reasoning similarity by model and run",
         ylabel="Mean reasoning similarity",
-        path=output_dir / "mean_reasoning_similarity_by_model_and_run.png",
+        path=plot_path(output_dir, "mean_reasoning_similarity_by_model_and_run"),
     )
 
     save_grouped_run_plot(
@@ -522,7 +576,7 @@ def compare_runs(
         metric="reasoning_similarity_lt_080",
         title="Pairs with reasoning similarity below 0.80 by model and run",
         ylabel="Number of pairs",
-        path=output_dir / "reasoning_similarity_lt_080_by_model_and_run.png",
+        path=plot_path(output_dir, "reasoning_similarity_lt_080_by_model_and_run"),
     )
 
     save_grouped_run_plot(
@@ -530,7 +584,7 @@ def compare_runs(
         metric="confidence_shift_mean",
         title="Mean confidence shift by model and run",
         ylabel="Mean confidence shift",
-        path=output_dir / "mean_confidence_shift_by_model_and_run.png",
+        path=plot_path(output_dir, "mean_confidence_shift_by_model_and_run"),
     )
 
     save_delta_plot(
@@ -539,7 +593,7 @@ def compare_runs(
         metric_delta="any_decision_flip_rate_delta",
         title=f"Decision flip rate delta by model ({run_b_name} - {run_a_name})",
         ylabel="Decision flip rate delta",
-        path=output_dir / "delta_decision_flip_rate_by_model.png",
+        path=plot_path(output_dir, "delta_decision_flip_rate_by_model"),
     )
 
     save_delta_plot(
@@ -548,19 +602,19 @@ def compare_runs(
         metric_delta="reasoning_similarity_mean_delta",
         title=f"Mean reasoning similarity delta by model ({run_b_name} - {run_a_name})",
         ylabel="Reasoning similarity delta",
-        path=output_dir / "delta_reasoning_similarity_by_model.png",
+        path=plot_path(output_dir, "delta_reasoning_similarity_by_model"),
     )
 
     save_model_task_delta_plot(
         task_delta=delta_by_task,
         metric_delta="any_decision_flip_rate_delta",
-        output_path=output_dir / "delta_decision_flip_rate_by_model_task.png",
+        output_path=plot_path(output_dir, "delta_decision_flip_rate_by_model_task"),
     )
 
     save_model_task_delta_plot(
         task_delta=delta_by_task,
         metric_delta="reasoning_similarity_mean_delta",
-        output_path=output_dir / "delta_reasoning_similarity_by_model_task.png",
+        output_path=plot_path(output_dir, "delta_reasoning_similarity_by_model_task"),
     )
 
     print(f"Run A rows: {len(run_a_df)} from {run_a_dir}")
