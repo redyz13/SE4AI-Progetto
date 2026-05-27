@@ -10,6 +10,22 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INPUT_DIR = PROJECT_ROOT / "outputs" / "llm_runs"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "outputs" / "plots"
 
+PLOT_FORMAT = "pdf"
+
+plt.rcParams["pdf.fonttype"] = 42
+plt.rcParams["ps.fonttype"] = 42
+
+
+def plot_path(output_dir: Path, name: str) -> Path:
+    return output_dir / f"{name}.{PLOT_FORMAT}"
+
+
+def safe_filename(value: str) -> str:
+    value = str(value)
+    value = re.sub(r"[^A-Za-z0-9_.-]+", "_", value)
+    return value.strip("_")
+
+
 def infer_model_name(path: Path) -> str:
     name = path.stem
 
@@ -91,9 +107,11 @@ def compute_model_summary(df: pd.DataFrame) -> pd.DataFrame:
                     else 0
                 ),
                 "choice_flips": int(choice_flips.sum()),
-                "choice_flip_rate": choice_flips[decision_mask].mean()
-                if decision_mask.sum()
-                else 0,
+                "choice_flip_rate": (
+                    choice_flips[decision_mask].mean()
+                    if decision_mask.sum()
+                    else 0
+                ),
                 "any_decision_flips": int(any_decision_flip.sum()),
                 "any_decision_flip_rate": any_decision_flip.mean(),
                 "confidence_shift_mean": confidence_shift.mean(),
@@ -212,14 +230,20 @@ def save_bar_plot(
     plot_data = data.copy()
     plot_data[x] = plot_data[x].astype(str)
 
-    plt.figure(figsize=(10, 6))
-    plt.bar(plot_data[x], plot_data[y])
-    plt.title(title)
-    plt.ylabel(ylabel)
-    plt.xticks(rotation=rotation, ha="right" if rotation else "center")
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=200)
-    plt.close()
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.bar(plot_data[x], plot_data[y])
+    ax.set_title(title)
+    ax.set_ylabel(ylabel)
+    ax.set_xticks(range(len(plot_data[x])))
+    ax.set_xticklabels(
+        plot_data[x],
+        rotation=rotation,
+        ha="right" if rotation else "center",
+    )
+
+    fig.tight_layout()
+    fig.savefig(output_path, bbox_inches="tight")
+    plt.close(fig)
 
 
 def save_grouped_bar_plot(
@@ -234,14 +258,16 @@ def save_grouped_bar_plot(
 
     plot_data = data.set_index(index_col)[value_cols]
 
-    plt.figure(figsize=(10, 6))
-    plot_data.plot(kind="bar")
-    plt.title(title)
-    plt.ylabel(ylabel)
-    plt.xticks(rotation=0)
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=200)
-    plt.close()
+    fig, ax = plt.subplots(figsize=(10, 6))
+    plot_data.plot(kind="bar", ax=ax)
+    ax.set_title(title)
+    ax.set_ylabel(ylabel)
+    ax.set_xlabel("")
+    ax.tick_params(axis="x", rotation=0)
+
+    fig.tight_layout()
+    fig.savefig(output_path, bbox_inches="tight")
+    plt.close(fig)
 
 
 def save_reasoning_histograms(df: pd.DataFrame, output_dir: Path) -> None:
@@ -250,14 +276,21 @@ def save_reasoning_histograms(df: pd.DataFrame, output_dir: Path) -> None:
     for model, group in df.groupby("model_key"):
         values = safe_numeric(group["reasoning_similarity"]).dropna()
 
-        plt.figure(figsize=(10, 6))
-        plt.hist(values, bins=20)
-        plt.title(f"Reasoning similarity distribution - {model}")
-        plt.xlabel("Reasoning similarity")
-        plt.ylabel("Number of pairs")
-        plt.tight_layout()
-        plt.savefig(output_dir / f"reasoning_similarity_hist_{model}.png", dpi=200)
-        plt.close()
+        if values.empty:
+            continue
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.hist(values, bins=20)
+        ax.set_title(f"Reasoning similarity distribution - {model}")
+        ax.set_xlabel("Reasoning similarity")
+        ax.set_ylabel("Number of pairs")
+
+        fig.tight_layout()
+        fig.savefig(
+            plot_path(output_dir, f"reasoning_similarity_hist_{safe_filename(model)}"),
+            bbox_inches="tight",
+        )
+        plt.close(fig)
 
 
 def save_confidence_shift_histograms(df: pd.DataFrame, output_dir: Path) -> None:
@@ -266,14 +299,28 @@ def save_confidence_shift_histograms(df: pd.DataFrame, output_dir: Path) -> None
     for model, group in df.groupby("model_key"):
         values = safe_numeric(group["confidence_shift"]).dropna()
 
-        plt.figure(figsize=(10, 6))
-        plt.hist(values, bins=range(0, int(values.max()) + 2))
-        plt.title(f"Confidence shift distribution - {model}")
-        plt.xlabel("Confidence shift")
-        plt.ylabel("Number of pairs")
-        plt.tight_layout()
-        plt.savefig(output_dir / f"confidence_shift_hist_{model}.png", dpi=200)
-        plt.close()
+        if values.empty:
+            continue
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        max_value = int(values.max()) if pd.notna(values.max()) else 0
+        if max_value > 0:
+            bins = range(0, max_value + 2)
+            ax.hist(values, bins=bins)
+        else:
+            ax.hist(values, bins=10)
+
+        ax.set_title(f"Confidence shift distribution - {model}")
+        ax.set_xlabel("Confidence shift")
+        ax.set_ylabel("Number of pairs")
+
+        fig.tight_layout()
+        fig.savefig(
+            plot_path(output_dir, f"confidence_shift_hist_{safe_filename(model)}"),
+            bbox_inches="tight",
+        )
+        plt.close(fig)
 
 
 def save_heatmap(
@@ -283,15 +330,20 @@ def save_heatmap(
 ) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    plt.figure(figsize=(12, 7))
-    plt.imshow(pivot.values, aspect="auto")
-    plt.title(title)
-    plt.xticks(range(len(pivot.columns)), pivot.columns, rotation=45, ha="right")
-    plt.yticks(range(len(pivot.index)), pivot.index)
-    plt.colorbar(label="Value")
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=200)
-    plt.close()
+    fig, ax = plt.subplots(figsize=(12, 7))
+    image = ax.imshow(pivot.values, aspect="auto")
+
+    ax.set_title(title)
+    ax.set_xticks(range(len(pivot.columns)))
+    ax.set_xticklabels(pivot.columns, rotation=45, ha="right")
+    ax.set_yticks(range(len(pivot.index)))
+    ax.set_yticklabels(pivot.index)
+
+    fig.colorbar(image, ax=ax, label="Value")
+
+    fig.tight_layout()
+    fig.savefig(output_path, bbox_inches="tight", dpi=300)
+    plt.close(fig)
 
 
 def save_decision_flip_heatmap(df: pd.DataFrame, output_dir: Path) -> None:
@@ -319,7 +371,7 @@ def save_decision_flip_heatmap(df: pd.DataFrame, output_dir: Path) -> None:
     save_heatmap(
         pivot=pivot,
         title="Decision flip rate by bias axis and model",
-        output_path=output_dir / "heatmap_decision_flip_rate_by_bias_axis.png",
+        output_path=plot_path(output_dir, "heatmap_decision_flip_rate_by_bias_axis"),
     )
 
 
@@ -339,7 +391,7 @@ def save_reasoning_heatmap(df: pd.DataFrame, output_dir: Path) -> None:
     save_heatmap(
         pivot=pivot,
         title="Mean reasoning similarity by bias axis and model",
-        output_path=output_dir / "heatmap_reasoning_similarity_by_bias_axis.png",
+        output_path=plot_path(output_dir, "heatmap_reasoning_similarity_by_bias_axis"),
     )
 
 
@@ -424,7 +476,7 @@ def generate_plots(df: pd.DataFrame, output_dir: Path) -> None:
         y="any_decision_flip_rate",
         title="Decision flip rate by model",
         ylabel="Decision flip rate",
-        output_path=output_dir / "decision_flip_rate_by_model.png",
+        output_path=plot_path(output_dir, "decision_flip_rate_by_model"),
     )
 
     save_grouped_bar_plot(
@@ -437,7 +489,7 @@ def generate_plots(df: pd.DataFrame, output_dir: Path) -> None:
         ],
         title="Task-specific flip rates by model",
         ylabel="Flip rate",
-        output_path=output_dir / "task_flip_rates_by_model.png",
+        output_path=plot_path(output_dir, "task_flip_rates_by_model"),
     )
 
     save_bar_plot(
@@ -446,7 +498,7 @@ def generate_plots(df: pd.DataFrame, output_dir: Path) -> None:
         y="reasoning_similarity_mean",
         title="Mean reasoning similarity by model",
         ylabel="Mean reasoning similarity",
-        output_path=output_dir / "mean_reasoning_similarity_by_model.png",
+        output_path=plot_path(output_dir, "mean_reasoning_similarity_by_model"),
     )
 
     save_bar_plot(
@@ -455,7 +507,7 @@ def generate_plots(df: pd.DataFrame, output_dir: Path) -> None:
         y="reasoning_similarity_lt_080",
         title="Pairs with reasoning similarity below 0.80 by model",
         ylabel="Number of pairs",
-        output_path=output_dir / "reasoning_similarity_lt_080_by_model.png",
+        output_path=plot_path(output_dir, "reasoning_similarity_lt_080_by_model"),
     )
 
     save_bar_plot(
@@ -464,7 +516,7 @@ def generate_plots(df: pd.DataFrame, output_dir: Path) -> None:
         y="confidence_shift_mean",
         title="Mean confidence shift by model",
         ylabel="Mean confidence shift",
-        output_path=output_dir / "mean_confidence_shift_by_model.png",
+        output_path=plot_path(output_dir, "mean_confidence_shift_by_model"),
     )
 
     save_reasoning_histograms(
@@ -495,7 +547,7 @@ def generate_plots(df: pd.DataFrame, output_dir: Path) -> None:
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Generate plots and summary tables from SE4AI evaluation CSV files."
+        description="Generate PDF plots and summary tables from SE4AI evaluation CSV files."
     )
 
     parser.add_argument(
@@ -527,7 +579,7 @@ def main():
     )
 
     print(f"Loaded {len(df)} rows from {input_dir}")
-    print(f"Saved plots and tables to {output_dir}")
+    print(f"Saved PDF plots and tables to {output_dir}")
 
 
 if __name__ == "__main__":
