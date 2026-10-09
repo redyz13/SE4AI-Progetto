@@ -1,5 +1,22 @@
 # 🐈‍⬛‍️ SE4AI — Counterfactual Fairness Testing for Generative AI 🦇
 
+## 📄 Publication
+
+The work developed in this project led to the following research paper:
+
+**Automated Counterfactual Scenario Generation for Fairness Assessment of Large Language Models: the ScenGen Framework**
+
+**Venue:** TRUST 2026, co-located with the 41st IEEE/ACM International Conference on Automated Software Engineering (ASE 2026).
+
+- **Published paper:** https://doi.org/10.1145/3843782.3844655
+- **Replication package:** https://github.com/redyz13/TRUST26-replicationPackage
+
+The replication package contains the experimental inputs, model outputs, evaluation metrics, analysis artifacts, and scripts required to reproduce the study reported in the paper.
+
+This repository preserves the original SE4AI project and its broader experimental framework, including exploratory metrics and analyses beyond those reported in the publication.
+
+---
+
 ## 📌 Overview
 
 This repository contains a framework for **counterfactual fairness testing of generative language models**, developed as part of a **SE4AI course**.
@@ -462,8 +479,22 @@ Further work may include expanding the taxonomy, increasing scenario diversity, 
 
 ---
 
+## 📚 Citation
+
+If you use ScenGen or build upon this work, please cite the published paper:
+
+**Automated Counterfactual Scenario Generation for Fairness Assessment of Large Language Models: the ScenGen Framework**
+
+*TRUST 2026 — Workshop co-located with ASE 2026.*
+
+**DOI:** https://doi.org/10.1145/3843782.3844655
+
+The experimental artifacts associated with the publication are available in the [TRUST26 Replication Package](https://github.com/redyz13/TRUST26-replicationPackage).
+
+---
+
 ## 👥 Credits
 
-This project is developed as part of a SE4AI course.
+This project was originally developed as part of a SE4AI course and subsequently led to a research paper published at TRUST 2026.
 
 The repository represents an effort to apply software engineering principles to the evaluation and analysis of fairness-related behavior in generative AI systems.
